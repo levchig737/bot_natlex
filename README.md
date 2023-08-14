@@ -1,16 +1,16 @@
-# config.json
+### config.json
 Конфигурация кнопочек до subsections. Выводит по нажатию descriptions или другие кнопочки, которые по нажатию выводят только description.
 
-# allowed_usernames.json
+### allowed_usernames.json
 Список пользователей. Usernames используется для доступа к боту.
 
-# token.txt
+### token.txt
 Файл с токеном тг бота в первой строке.
 
-# bot.py
+### bot.py
 Основной скрипт
 
-## Инструкция
+# Инструкция
 - Добавьте файл token.txt в корень проекта со своим токеном.
 - Добавьте в allowed_usernames.json usernames пользователей, кому нужен доступ к боту.
 - Запустите bot.py.
