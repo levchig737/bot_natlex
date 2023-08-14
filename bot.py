@@ -20,7 +20,6 @@ def load_token(file_path):
 
 ALLOWED_USERNAMES = []
 TOKEN = load_token('token.txt')
-fes= 2
 
 bot = telebot.TeleBot(TOKEN)
 
