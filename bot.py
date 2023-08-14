@@ -19,9 +19,11 @@ def load_token(file_path):
 
 
 ALLOWED_USERNAMES = []
+None
 TOKEN = load_token('token.txt')
 
 bot = telebot.TeleBot(TOKEN)
+fes= 'fe'
 
 
 
