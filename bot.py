@@ -1,167 +1,121 @@
+import os
 import telebot
 from telebot import types
-import json
+import uuid
 import time
 import threading
 
-
-
-
-"""
-Функция загрузки токена
-"""
-def load_token(file_path):
-    with open(file_path, 'r') as file:
-        token = file.read().strip()
-    return token
-
-
-
-
-ALLOWED_USERNAMES = []
-TOKEN = load_token('token.txt')
-
+# Замените YOUR_BOT_TOKEN на ваш токен бота
+TOKEN = '1392602436:AAHGS9YkfFco6YE8FXbB73CaviAiZk32l3k'
 bot = telebot.TeleBot(TOKEN)
 
+# Путь к папке с разделами и подразделами
+BASE_DIR = r'D:\Natlex praktika\bot_natlex'
+
+# Словарь для хранения данных о путях кнопок
+data_dict = {}
 
 
 
-"""
-Функци загрузки файла конфигурации
-"""
-def load_config(file_path):
-    with open(file_path, 'r', encoding='utf-8') as file:
-        config = json.load(file)
-    return config
-
-
-
-
-"""
-Функция чтения списка ALLOWED_USERNAMES каждые 5 минут, создает новый поток
-"""
-def update_allowed_usernames():
-    global ALLOWED_USERNAMES
+#### Тестирование очистки словаря индексов
+def test_dict():
+    global data_dict
     while True:
-        new_allowed_usernames_data = load_config('allowed_usernames.json')
-        new_allowed_usernames = [user['username'] for user in new_allowed_usernames_data]
-        if new_allowed_usernames != ALLOWED_USERNAMES:
-            ALLOWED_USERNAMES = new_allowed_usernames
-            print("Allowed usernames updated:", ALLOWED_USERNAMES)
+        print(data_dict.keys())
         
-        time.sleep(300)  # Обновление каждые 5 минут
+        time.sleep(3)  # Обновление каждые 5 минут
+
+
+
+"""
+Генерация уникального идентификатора
+"""
+def generate_uuid():
+    return str(uuid.uuid4())
+
+
+"""
+Функция создания кнопок
+"""
+# Функция создания кнопок
+def create_keyboard(directory, path):
+    keyboard = types.InlineKeyboardMarkup()
+    for item in directory:
+        item_path = os.path.join(path, item) # Путь до item
+
+        button_id = generate_uuid() 
+        data_dict[button_id] = item_path
         
-
-
-
-"""
-Фильтр доступа по username
-"""
-@bot.message_handler(func=lambda message: message.from_user.username not in ALLOWED_USERNAMES)
-def some(message):
-   bot.send_message(message.chat.id, "Прости, нет доступа")
-
-
-
-
-"""
-Создание кнопок по файлу конфигурации
-"""
-def create_keyboard(config, section_title=None):
-    keyboard = types.InlineKeyboardMarkup(row_width=1)
-    # Если нет заголовка, то мы создаем главные кнопки по файлу конфигурации
-    if section_title == None:
-        for section in config:
-            button = types.InlineKeyboardButton(text=section['title'], callback_data=section['title'])
-            keyboard.add(button)
-    
-    # Если задан заголовок, значит ищем подразделы
-    else:
-        for section in config:
-            if section_title and section['title'] == section_title:
-                for subsection in section.get('subsections', []):
-                    button = types.InlineKeyboardButton(text=subsection['title'], callback_data=subsection['title'])
-                    keyboard.add(button)
-                break
-
+        button = types.InlineKeyboardButton(text=item, callback_data=button_id)
+        keyboard.add(button)
     return keyboard
 
 
 
 
 """
-Основное меню    
-"""
-def main_menu(id, text):
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    item1 = types.KeyboardButton('Главное меню')
-
-    markup.add(item1)
-    bot.send_message(id, text, reply_markup=markup)
-
-
-
-
-"""
-Перехватчик start
+Функция для обработки команды /start
 """
 @bot.message_handler(commands=['start'])
 def start(message):
-    # Создаем стартовое меню и пишем приветсвенное сообщение
-    hello_message = f"Привет, {message.from_user.first_name}!"        
-    main_menu(message.chat.id, hello_message)
-    bot.send_message(message.chat.id, "Выберите раздел:", reply_markup=create_keyboard(config))
+    markup = types.ReplyKeyboardRemove(selective=False)
+    bot.send_message(message.chat.id, "Выберите раздел:", reply_markup=markup)
+    show_sections(message.chat.id, BASE_DIR)
+
+
+
+
+def search_files(path):
+    dirs = [d for d in os.listdir(path) if os.path.isdir(os.path.join(path, d))]
+    files = [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f)) and not f.endswith('.py') and not f.endswith('.json')]
+
+    return dirs, files
+
+
+
+"""
+Функция для отображения разделов и подразделов
+"""
+def show_sections(chat_id, path, message_id=None):
+    dirs, files = search_files(path)
+
+    # Если список не пуст, т.е. есть файлы с текстом
+    if files:
+        for file in files:
+            with open(os.path.join(path, file), 'r', encoding='utf-8') as f:
+                description = f.read()
+            
+            bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=description)
+    else:
+        keyboard = create_keyboard(dirs, path)
+        if message_id == None:
+            bot.send_message(chat_id, "Выберите раздел или подраздел:", reply_markup=keyboard)
+        else:
+            bot.edit_message_reply_markup(chat_id=chat_id, message_id=message_id, reply_markup=keyboard)
+        # bot.send_message(chat_id, "Выберите раздел или подраздел:", reply_markup=keyboard)
 
 
 
 
 """
-Перехватчик и метод получения текстовых сообщений
-"""
-@bot.message_handler(content_types=['text'])
-def get_text_messages(message):
-    if message.chat.type == 'private': # Если личное сообщение, а не канал какой-то
-        if message.text == "Главное меню":
-            main_menu(message.chat.id, "Главное меню")  
-            bot.send_message(message.chat.id, "Выберите раздел:", reply_markup=create_keyboard(config))
-
-
-"""
-Перехватчик результатов кнопок
+Функция для обработки коллбэков кнопок
 """
 @bot.callback_query_handler(func=lambda call: True)
 def callback_query(call):
     if call.message:
-        for section in config:
-            if call.data == section['title']:
-                description = section.get('description', '')
-                subsections = section.get('subsections', [])
-                # Если описание не пустое, то выводи описание
-                if description != '':
-                    bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=description)
+        button_id = call.data
+        item_path = data_dict.get(button_id)
 
-                # Если есть подразделы, то меняем кнопки
-                if subsections != None:
-                    bot.edit_message_reply_markup(chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=create_keyboard(config, section['title']))
-                break
-            # Если это подраздел, то ищем среди них нужное title и выводим desctiption
-            else:
-                for subsection in section.get('subsections', []):
-                    if call.data == subsection['title']:
-                        bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=subsection['description'])
-                        break
-                
+        if item_path:
+            show_sections(call.message.chat.id, item_path, call.message.message_id)
+            data_dict.pop(button_id, None)
 
 
 
-
-
-if __name__ == '__main__':
-    config = load_config('config.json')
+if __name__ == "__main__":
     # Запуск потока для периодического обновления
-    update_thread = threading.Thread(target=update_allowed_usernames)
+    update_thread = threading.Thread(target=test_dict)
     update_thread.daemon = True  # Поток будет остановлен при завершении основного потока
     update_thread.start()
+    bot.polling(none_stop=True)
 
-
-    bot.polling(none_stop=True, interval=0)
