@@ -6,7 +6,7 @@ import time
 import threading
 
 # Замените YOUR_BOT_TOKEN на ваш токен бота
-TOKEN = '1392602436:AAHGS9YkfFco6YE8FXbB73CaviAiZk32l3k'
+TOKEN = ''
 bot = telebot.TeleBot(TOKEN)
 
 # Путь к папке с разделами и подразделами
