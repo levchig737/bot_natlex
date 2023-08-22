@@ -1,54 +1,164 @@
 import os
 import telebot
 from telebot import types
-import uuid
 import time
-import threading
+import json
 
-# Замените YOUR_BOT_TOKEN на ваш токен бота
-TOKEN = ''
+
+
+
+"""
+Функция загрузки токена
+"""
+def load_token(file_path):
+    with open(file_path, 'r') as file:
+        token = file.read().strip()
+    return token
+
+
+
+
+# Запуск бота
+TOKEN = load_token('TOKEN.txt')
 bot = telebot.TeleBot(TOKEN)
 
+
+# Получение текущего пути к файлу бота
+bot_directory = os.path.dirname(os.path.abspath(__file__))
+
+PATH_TO_DOCS = "docs"
+
 # Путь к папке с разделами и подразделами
-BASE_DIR = r'D:\Natlex praktika\bot_natlex'
-
-# Словарь для хранения данных о путях кнопок
-data_dict = {}
+BASE_DIR = os.path.join(bot_directory, PATH_TO_DOCS)
 
 
+ALLOWED_USERS = []
+# USERS_INFO = {}
 
-#### Тестирование очистки словаря индексов
-def test_dict():
-    global data_dict
+
+class UsersInfo:
+    def __init__(self):
+        self.__users_info = {}
+
+    def get_user_info(self, user_id):
+        return self.__users_info.get(user_id, None)
+
+    def add_user_info(self, user_id, user_info):
+        self.__users_info[user_id] = user_info
+
+    """
+    Обновление current_path пользователя
+    """
+    def update_user_path(self, user_id, new_path):
+        user_info = self.get_user_info(user_id)
+        if user_info:
+            user_info["current_path"] = new_path
+
+    """
+    Откат current_path пользователя до BASE_DIR
+    """
+    def refresh_current_path(self, user_id):
+        user_info = self.get_user_info(user_id)
+        if user_info:
+            user_info["current_path"] = BASE_DIR
+
+    """
+    Загрузка инофрмации о пользователе
+    """
+    def load_user_info(self, user_id, username):
+        found_user = get_user_from_allowed_users(username) 
+        found_user["current_path"] = BASE_DIR
+
+        self.add_user_info(int(user_id), found_user)
+
+
+
+# Создаем объект класса UsersInfo
+USERS_INFO = UsersInfo()
+
+
+
+
+#### Тестирование работы бота с выводом инфы
+def test_bot():
     while True:
-        print(data_dict.keys())
-        
         time.sleep(3)  # Обновление каждые 5 минут
 
 
 
+
 """
-Генерация уникального идентификатора
+Очистка бота
 """
-def generate_uuid():
-    return str(uuid.uuid4())
+def clear_bot():
+    global USERS_INFO
+
+
+
+
+"""
+Функци загрузки json файла
+"""
+def load_json(file_path):
+    with open(file_path, 'r', encoding='utf-8') as file:
+        config = json.load(file)
+    return config
+
+
+
+
+"""
+Получить пользователя по username из списка пользователей
+"""
+def get_user_from_allowed_users(username):
+    found_user = None
+    for user in ALLOWED_USERS:
+        if user["username"] == username:
+            found_user = user.copy()
+            break
+
+    return found_user
+    
+
+
+
+"""
+Главное меню клавиатура
+"""
+def main_keyboard(id, text):
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    item1 = types.KeyboardButton('Главное меню')
+
+    markup.add(item1)
+    bot.send_message(id, text, reply_markup=markup)
+
+
 
 
 """
 Функция создания кнопок
 """
-# Функция создания кнопок
 def create_keyboard(directory, path):
     keyboard = types.InlineKeyboardMarkup()
     for item in directory:
-        item_path = os.path.join(path, item) # Путь до item
-
-        button_id = generate_uuid() 
-        data_dict[button_id] = item_path
-        
-        button = types.InlineKeyboardButton(text=item, callback_data=button_id)
+        button = types.InlineKeyboardButton(text=item, callback_data=item)
         keyboard.add(button)
     return keyboard
+
+
+
+
+"""
+Фильтр пользователей доступа к боту
+"""
+def user_allowed(func):
+    def wrapper(message):
+        user = get_user_from_allowed_users(message.from_user.username)
+        if user:
+            func(message)
+        else:
+            bot.send_message(message.chat.id, "Вы не имеете доступа к боту")
+    return wrapper
 
 
 
@@ -57,14 +167,46 @@ def create_keyboard(directory, path):
 Функция для обработки команды /start
 """
 @bot.message_handler(commands=['start'])
+@user_allowed
 def start(message):
-    markup = types.ReplyKeyboardRemove(selective=False)
-    bot.send_message(message.chat.id, "Выберите раздел:", reply_markup=markup)
+
+    # Создаем стартовое меню и пишем приветсвенное сообщение
+    hello_message = f"Привет, {message.from_user.first_name}!"        
+    main_keyboard(message.chat.id, hello_message) 
+
+    print(message.from_user.id)
+    
+    # Добавления пользователся в локальный словарь по user_id
+    USERS_INFO.load_user_info(message.from_user.id, message.from_user.username)
+    # load_user_info(message.from_user.id, message.from_user.username)
+
+    USERS_INFO.refresh_current_path(message.from_user.id)
+    # refresh_current_path(message.from_user.id)
+
     show_sections(message.chat.id, BASE_DIR)
 
 
 
 
+"""
+Перехватчик и метод получения текстовых сообщений
+"""
+@bot.message_handler(content_types=['text'])
+def get_text_messages(message):
+    if message.chat.type == 'private': # Если личное сообщение, а не канал какой-то
+        if message.text == "Главное меню":
+            # main_keyboard(message.chat.id, "Главное меню")  
+            USERS_INFO.refresh_current_path(message.from_user.id)
+            # refresh_current_path(message.from_user.id)
+            
+            show_sections(message.chat.id, BASE_DIR)
+
+
+
+
+"""
+Поиск файлов по пути для отображения кнопок
+"""
 def search_files(path):
     dirs = [d for d in os.listdir(path) if os.path.isdir(os.path.join(path, d))]
     files = [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f)) and not f.endswith('.py') and not f.endswith('.json')]
@@ -73,11 +215,18 @@ def search_files(path):
 
 
 
+
 """
 Функция для отображения разделов и подразделов
 """
-def show_sections(chat_id, path, message_id=None):
-    dirs, files = search_files(path)
+def show_sections(chat_id, path, message=None):
+    try:
+        dirs, files = search_files(path)
+    except:
+        bot.send_message(chat_id, "Нет такого файла")
+        USERS_INFO.refresh_current_path(message.chat.id)
+        # refresh_current_path(message.chat.id)
+        return
 
     # Если список не пуст, т.е. есть файлы с текстом
     if files:
@@ -85,14 +234,15 @@ def show_sections(chat_id, path, message_id=None):
             with open(os.path.join(path, file), 'r', encoding='utf-8') as f:
                 description = f.read()
             
-            bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=description)
+            bot.edit_message_text(chat_id=chat_id, message_id=message.message_id, text=description)
+            USERS_INFO.refresh_current_path(message.chat.id)
+            # refresh_current_path(message.chat.id) # Очищаем путь, т.к. был выведен текст без кнопок
     else:
         keyboard = create_keyboard(dirs, path)
-        if message_id == None:
-            bot.send_message(chat_id, "Выберите раздел или подраздел:", reply_markup=keyboard)
+        if message == None:  
+            bot.send_message(chat_id, "Выберите раздел:", reply_markup=keyboard)
         else:
-            bot.edit_message_reply_markup(chat_id=chat_id, message_id=message_id, reply_markup=keyboard)
-        # bot.send_message(chat_id, "Выберите раздел или подраздел:", reply_markup=keyboard)
+            bot.edit_message_reply_markup(chat_id=chat_id, message_id=message.message_id, reply_markup=keyboard)
 
 
 
@@ -102,20 +252,31 @@ def show_sections(chat_id, path, message_id=None):
 """
 @bot.callback_query_handler(func=lambda call: True)
 def callback_query(call):
+    # global USERS_INFO
     if call.message:
-        button_id = call.data
-        item_path = data_dict.get(button_id)
+        data = call.data
 
-        if item_path:
-            show_sections(call.message.chat.id, item_path, call.message.message_id)
-            data_dict.pop(button_id, None)
+        if data:
+            new_path = os.path.join(USERS_INFO.get_user_info(call.from_user.id)["current_path"], data) # Путь до item
+            USERS_INFO.update_user_path(call.from_user.id, new_path)
+            # USERS_INFO[call.from_user.id]["current_path"] = \
+            # os.path.join(USERS_INFO[call.from_user.id]["current_path"], data) # Путь до item
+            
+            show_sections(call.message.chat.id, USERS_INFO.get_user_info(call.from_user.id)["current_path"], call.message)
+
 
 
 
 if __name__ == "__main__":
     # Запуск потока для периодического обновления
-    update_thread = threading.Thread(target=test_dict)
-    update_thread.daemon = True  # Поток будет остановлен при завершении основного потока
-    update_thread.start()
+    # update_thread = threading.Thread(target=test_bot)
+    # update_thread.daemon = True  # Поток будет остановлен при завершении основного потока
+    # update_thread.start()
+
+
+    # Загрузка списка пользователей
+    ALLOWED_USERS = load_json("ALLOWED_USERS.json")
+
+
     bot.polling(none_stop=True)
 
