@@ -36,6 +36,7 @@ ALLOWED_USERS = []
 # USERS_INFO = {}
 
 
+
 class UsersInfo:
     def __init__(self):
         self.__users_info = {}
@@ -76,6 +77,63 @@ class UsersInfo:
 # Создаем объект класса UsersInfo
 USERS_INFO = UsersInfo()
 
+
+
+"""
+Класс опросов.
+Создание опроса, сохранение, загрузка в json.
+Отправка пользователю.
+"""
+class Survey:
+    def __init__(self):
+        self.__survey = {}
+        self.date = ""
+        self.name = ""
+        self.users = []
+
+    @property
+    def survey(self):
+        return self.__survey
+
+    @survey.setter
+    def survey(self, dict):
+        self.__survey = dict.copy()
+    
+    def get_question(self):
+        try:
+            return self.survey["question"]
+        except:
+            print("Ошибка, нет вопроса в опросе")
+            return "Вопрос"
+    
+    def get_options(self):
+        try:
+            return self.survey["options"]
+        except:
+            print("Ошибка, нет ответов в опросе")
+            return ['1 ответ', '2 ответ', '3 ответ']
+        
+    def load_survey(self, path):
+        #Получаем по пути json и читаем его
+        # Заполняем в список survey
+        None
+
+    def save_survey(self, path, name):
+        # Загружаем в json фалй
+        None
+
+    def send_survey(self, message):
+        bot.send_poll(message.chat.id, question=self.get_question(), options=self.get_options())
+
+
+
+
+
+survey = Survey()
+survey.survey = {
+    "question": "Какой ваш любимый цвет?",
+    "options": ["Красный", "Синий", "Зеленый"],
+}
 
 
 
@@ -185,6 +243,7 @@ def start(message):
 
     show_sections(message.chat.id, BASE_DIR)
 
+    # survey.send_survey(message)
 
 
 
@@ -208,7 +267,7 @@ def get_text_messages(message):
 Поиск файлов по пути для отображения кнопок
 """
 def search_files(path):
-    dirs = [d for d in os.listdir(path) if os.path.isdir(os.path.join(path, d))]
+    dirs = [d for d in os.listdir(path) if os.path.isdir(os.path.join(path, d)) and d != "surveys"]
     files = [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f)) and not f.endswith('.py') and not f.endswith('.json')]
 
     return dirs, files
