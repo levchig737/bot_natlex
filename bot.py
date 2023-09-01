@@ -33,6 +33,7 @@ BASE_DIR = os.path.join(bot_directory, PATH_TO_DOCS)
 
 
 ALLOWED_USERS = []
+ALLOWED_ADMINS = []
 # USERS_INFO = {}
 
 
@@ -40,6 +41,10 @@ ALLOWED_USERS = []
 class UsersInfo:
     def __init__(self):
         self.__users_info = {}
+
+    @property
+    def users_info(self):
+        return self.__users_info
 
     def get_user_info(self, user_id):
         return self.__users_info.get(user_id, None)
@@ -72,10 +77,27 @@ class UsersInfo:
 
         self.add_user_info(int(user_id), found_user)
 
+    def load_admin_info(self, user_id, username):
+        found_user = get_user_from_allowed_admins(username) 
+        found_user["current_path"] = BASE_DIR
+
+        self.add_user_info(int(user_id), found_user)
+
+    """
+    Проверка есть ли пользователь 
+    """
+    def check_user(self, user_id):
+        if user_id in self.__users_info:
+            return True
+        else:
+            return False
 
 
 # Создаем объект класса UsersInfo
 USERS_INFO = UsersInfo()
+
+# Админы
+ADMIN_INFO = UsersInfo()
 
 
 
@@ -88,8 +110,10 @@ class Survey:
     def __init__(self):
         self.__survey = {}
         self.date = ""
-        self.name = ""
+        self.__name_survey = ""
+        self.__name_result = ""
         self.users = []
+        self.path = os.path.join(BASE_DIR, "surveys")
 
     @property
     def survey(self):
@@ -98,43 +122,69 @@ class Survey:
     @survey.setter
     def survey(self, dict):
         self.__survey = dict.copy()
+
+    @property
+    def name_survey(self):
+        return self.__name_survey
+    
+    @name_survey.setter
+    def name_survey(self, name):
+        if name.endswith('.json'):
+            self.__name_survey = name
+        else:
+            self.__name_survey = name + ".json"
     
     def get_question(self):
         try:
             return self.survey["question"]
         except:
             print("Ошибка, нет вопроса в опросе")
-            return "Вопрос"
+            # return "Вопрос"
     
     def get_options(self):
         try:
             return self.survey["options"]
         except:
             print("Ошибка, нет ответов в опросе")
-            return ['1 ответ', '2 ответ', '3 ответ']
+            # return ['1 ответ', '2 ответ', '3 ответ']
         
-    def load_survey(self, path):
-        #Получаем по пути json и читаем его
-        # Заполняем в список survey
-        None
+    def load_survey(self, name):
+        try:
+            self.name_survey = name
+            with open(os.path.join(self.path, self.name_survey), "r", encoding="utf-8") as file:
+                self.survey = json.load(file)
+                return True
+        except Exception as e:
+            print("Ошибка при чтении данных из файла:", e)
+            return False
 
-    def save_survey(self, path, name):
+    def save_survey(self):
         # Загружаем в json фалй
-        None
+        try:
+            with open(os.path.join(self.path, self.name_survey), "w", encoding="utf-8") as file:
+                json.dump(self.survey, file, ensure_ascii=False, indent=4)
+            print("Данные успешно записаны в файл:", self.path)
+        except Exception as e:
+            print("Ошибка при записи данных в файл:", e)
 
-    def send_survey(self, message):
-        bot.send_poll(message.chat.id, question=self.get_question(), options=self.get_options())
+    def get_results(self):
+       None
+
+    def send_survey(self, chat_id):
+        bot.send_poll(chat_id, question=self.get_question(), options=self.get_options())
+
+
 
 
 
 
 
 survey = Survey()
-survey.survey = {
-    "question": "Какой ваш любимый цвет?",
-    "options": ["Красный", "Синий", "Зеленый"],
-}
-
+# survey.survey = {
+#     "question": "Какой ваш любимый цвет?",
+#     "options": ["Красный", "Синий", "Зеленый"],
+# }
+# survey.name_survey = "testnауыа"
 
 
 #### Тестирование работы бота с выводом инфы
@@ -170,8 +220,22 @@ def load_json(file_path):
 """
 def get_user_from_allowed_users(username):
     found_user = None
+    user1_lower = username.lower()
     for user in ALLOWED_USERS:
-        if user["username"] == username:
+        user2_lower = user["username"].lower()
+        if user2_lower == user1_lower:
+            found_user = user.copy()
+            break
+
+    return found_user
+
+
+def get_user_from_allowed_admins(username):
+    found_user = None
+    user1_lower = username.lower()
+    for user in ALLOWED_ADMINS:
+        user2_lower = user["username"].lower()
+        if user2_lower == user1_lower:
             found_user = user.copy()
             break
 
@@ -181,9 +245,11 @@ def get_user_from_allowed_users(username):
 
 
 """
-Главное меню клавиатура
+Клавиатура пользователя
 """
-def main_keyboard(id, text):
+def user_keyboard(id, text="Главное меню"):
+    if text == None:
+        text = "Главное меню"
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     item1 = types.KeyboardButton('Главное меню')
 
@@ -194,14 +260,78 @@ def main_keyboard(id, text):
 
 
 """
-Функция создания кнопок
+Клавиатура админа
 """
-def create_keyboard(directory, path):
+def admin_keyboard(id, text="Главное меню"):
+    if text == None:
+        text = "Главное меню"
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    item1 = types.KeyboardButton('Режим пользователя')
+    item2 = types.KeyboardButton('Отмена') 
+
+    markup.add(item1, item2)
+    bot.send_message(id, text, reply_markup=markup)
+
+
+
+
+"""
+Функция создания кнопок ползователя
+"""
+def create_user_keyboard(directory, path):
     keyboard = types.InlineKeyboardMarkup()
     for item in directory:
         button = types.InlineKeyboardButton(text=item, callback_data=item)
         keyboard.add(button)
     return keyboard
+
+
+"""
+Функция создания кнопок админа
+"""
+def create_admin_keyboard():
+    keyboard = types.InlineKeyboardMarkup()
+    item1 = "Создать опрос"
+    item2 = "Отправить опрос"
+    button1 = types.InlineKeyboardButton(text=item1, callback_data=f"admin:{item1}")
+    button2 = types.InlineKeyboardButton(text=item2, callback_data=f"admin:{item2}")
+    
+    keyboard.add(button1, button2)
+    
+    return keyboard
+
+
+
+
+"""
+Инициализируем пользователя
+"""
+def initilize_user(user_id, username, text=None):
+    if USERS_INFO.check_user(user_id):
+        return
+
+    print(user_id)
+    
+    # Добавления пользователя в локальный словарь по user_id
+    USERS_INFO.load_user_info(user_id, username)
+
+    USERS_INFO.refresh_current_path(user_id)
+
+
+
+"""
+Инициализируем админа
+"""
+def initilize_admin(user_id, username, text=None):
+    if ADMIN_INFO.check_user(user_id):
+        return
+    
+    print(user_id)
+    
+    # Добавления пользователся в локальный словарь по user_id
+    ADMIN_INFO.load_admin_info(user_id, username)
+
+    ADMIN_INFO.refresh_current_path(user_id)
 
 
 
@@ -219,6 +349,85 @@ def user_allowed(func):
     return wrapper
 
 
+"""
+Фильтр пользователей доступа к боту
+"""
+def admin_allowed(func):
+    def wrapper(message):
+        user = get_user_from_allowed_admins(message.from_user.username)
+        if user:
+            func(message)
+        else:
+            bot.send_message(message.chat.id, "Вы не имеете доступа к боту")
+    return wrapper
+
+
+
+def create_survey(message):
+    # Создаем опрос
+    new_survey = Survey()
+    
+    # Запрашиваем у пользователя вопрос и варианты ответов
+    bot.send_message(message.chat.id, "Введите вопрос для опроса:")
+    bot.register_next_step_handler(message, lambda msg: admin(msg) if msg.text == "Отмена" else get_question(msg, new_survey))
+
+def get_question(message, survey):
+    # Сохраняем вопрос в опросе и запрашиваем варианты ответов
+    survey.survey["question"] = message.text
+    bot.send_message(message.chat.id, "Введите варианты ответов через запятую:")
+    bot.register_next_step_handler(message, lambda msg: admin(msg) if msg.text == "Отмена" else get_options(msg, survey))
+
+def get_options(message, survey):
+    # Сохраняем варианты ответов в опросе и сохраняем опрос в файл
+    options = [option.strip() for option in message.text.split(',')]
+    survey.survey["options"] = options
+    bot.send_message(message.chat.id, "Введите название опроса:")
+    bot.register_next_step_handler(message, lambda msg: admin(msg) if msg.text == "Отмена" else save_survey_name(msg, survey))
+
+def save_survey_name(message, survey):
+    # Сохраняем название опроса и сохраняем опрос в файл
+    survey.name_survey = message.text
+    survey.save_survey()
+    bot.send_message(message.chat.id, "Опрос успешно создан и сохранен.")
+
+def send_survey_for_users(message):
+    try:
+        survey = Survey()
+        bot.send_message(message.chat.id, "Введите название опроса:")
+        bot.register_next_step_handler(message, lambda msg: admin(msg) if msg.text == "Отмена" else load_survey(message, msg.text, survey))
+
+    except:
+        print("Ошибка отправки опроса")
+        bot.send_message(message.chat.id, "Ошибка отправки опроса")
+
+def load_survey(message, name, survey):
+    try:
+        survey.name_survey = name
+        survey.load_survey(name)
+        for user in USERS_INFO.users_info:
+            survey.send_survey(user)
+    except:
+        print("Ошибка загрузки опроса, проверьте его наличие")
+        bot.send_message(message.chat.id, "Ошибка загрузки опроса, проверьте его наличие")
+
+
+
+"""
+Функция для обработки создания опроса
+"""
+@bot.message_handler(commands=['admin'])
+@admin_allowed
+def admin(message):
+    initilize_user(message.from_user.id, message.from_user.username)
+    initilize_admin(message.from_user.id, message.from_user.username)
+
+    admin_keyboard(message.from_user.id)
+    
+    keyboard = create_admin_keyboard()
+    bot.send_message(message.chat.id, "Выберите действие:", reply_markup=keyboard)
+
+    # send_survey_for_users(message)
+
 
 
 """
@@ -230,20 +439,15 @@ def start(message):
 
     # Создаем стартовое меню и пишем приветсвенное сообщение
     hello_message = f"Привет, {message.from_user.first_name}!"        
-    main_keyboard(message.chat.id, hello_message) 
-
-    print(message.from_user.id)
+    initilize_user(message.from_user.id, message.from_user.username, hello_message)
+    user_keyboard(message.from_user.id, hello_message)
     
-    # Добавления пользователся в локальный словарь по user_id
-    USERS_INFO.load_user_info(message.from_user.id, message.from_user.username)
-    # load_user_info(message.from_user.id, message.from_user.username)
-
-    USERS_INFO.refresh_current_path(message.from_user.id)
-    # refresh_current_path(message.from_user.id)
-
     show_sections(message.chat.id, BASE_DIR)
 
+    # survey.save_survey()
+    # survey.load_survey("testnауыа.json")
     # survey.send_survey(message)
+
 
 
 
@@ -253,12 +457,17 @@ def start(message):
 @bot.message_handler(content_types=['text'])
 def get_text_messages(message):
     if message.chat.type == 'private': # Если личное сообщение, а не канал какой-то
+        initilize_user(message.from_user.id, message.from_user.username)
+
         if message.text == "Главное меню":
-            # main_keyboard(message.chat.id, "Главное меню")  
             USERS_INFO.refresh_current_path(message.from_user.id)
-            # refresh_current_path(message.from_user.id)
             
             show_sections(message.chat.id, BASE_DIR)
+
+        elif message.text == "Режим пользователя":
+            initilize_user(message.from_user.id, message.from_user.username)
+            user_keyboard(message.from_user.id)
+
 
 
 
@@ -284,7 +493,6 @@ def show_sections(chat_id, path, message=None):
     except:
         bot.send_message(chat_id, "Нет такого файла")
         USERS_INFO.refresh_current_path(message.chat.id)
-        # refresh_current_path(message.chat.id)
         return
 
     # Если список не пуст, т.е. есть файлы с текстом
@@ -295,9 +503,8 @@ def show_sections(chat_id, path, message=None):
             
             bot.edit_message_text(chat_id=chat_id, message_id=message.message_id, text=description)
             USERS_INFO.refresh_current_path(message.chat.id)
-            # refresh_current_path(message.chat.id) # Очищаем путь, т.к. был выведен текст без кнопок
     else:
-        keyboard = create_keyboard(dirs, path)
+        keyboard = create_user_keyboard(dirs, path)
         if message == None:  
             bot.send_message(chat_id, "Выберите раздел:", reply_markup=keyboard)
         else:
@@ -310,18 +517,24 @@ def show_sections(chat_id, path, message=None):
 Функция для обработки коллбэков кнопок
 """
 @bot.callback_query_handler(func=lambda call: True)
-def callback_query(call):
-    # global USERS_INFO
+def callback_query(call): 
     if call.message:
-        data = call.data
-
+        data = call.data      
+  
         if data:
-            new_path = os.path.join(USERS_INFO.get_user_info(call.from_user.id)["current_path"], data) # Путь до item
-            USERS_INFO.update_user_path(call.from_user.id, new_path)
-            # USERS_INFO[call.from_user.id]["current_path"] = \
-            # os.path.join(USERS_INFO[call.from_user.id]["current_path"], data) # Путь до item
-            
-            show_sections(call.message.chat.id, USERS_INFO.get_user_info(call.from_user.id)["current_path"], call.message)
+            admin = data.split(":")
+            if admin[0] == "admin":
+                if admin[1] == "Создать опрос":
+                    create_survey(call.message)
+                elif admin[1] == "Отправить опрос":
+                    send_survey_for_users(call.message)
+                
+            else: # Если пользователь
+                new_path = os.path.join(USERS_INFO.get_user_info(call.from_user.id)["current_path"], data) # Путь до item
+                USERS_INFO.update_user_path(call.from_user.id, new_path)
+                
+                show_sections(call.message.chat.id, USERS_INFO.get_user_info(call.from_user.id)["current_path"], call.message)
+
 
 
 
@@ -335,7 +548,12 @@ if __name__ == "__main__":
 
     # Загрузка списка пользователей
     ALLOWED_USERS = load_json("ALLOWED_USERS.json")
+    ALLOWED_ADMINS = load_json("ALLOWED_ADMINS.json")
 
-
-    bot.polling(none_stop=True)
-
+    
+    while True:
+        try:
+            bot.polling(none_stop=True)
+            # break
+        except Exception as e:
+            print(e)
