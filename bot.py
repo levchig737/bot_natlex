@@ -22,8 +22,6 @@ def load_token(file_path):
 TOKEN = load_token('TOKEN.txt')
 bot = telebot.TeleBot(TOKEN)
 
-TEST=111
-
 
 # Получение текущего пути к файлу бота
 bot_directory = os.path.dirname(os.path.abspath(__file__))
