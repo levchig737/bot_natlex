@@ -35,11 +35,6 @@ ALLOWED_USERS = []
 ALLOWED_ADMINS = []
 # USERS_INFO = {}
 
-TEST = 1231
-
-gesg = 123
-
-
 
 class UsersInfo:
     def __init__(self):
