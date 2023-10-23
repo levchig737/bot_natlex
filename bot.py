@@ -20,7 +20,7 @@ def load_token(file_path):
 
 # Запуск бота
 TOKEN = load_token('TOKEN.txt')
-bot = telebot.TeleBot(TOKEN)
+bot = telebot.TeleBot(TOKEN) 
 
 # Получение текущего пути к файлу бота
 bot_directory = os.path.dirname(os.path.abspath(__file__))
