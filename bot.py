@@ -37,6 +37,8 @@ ALLOWED_ADMINS = []
 
 TEST = 1231
 
+gesg = 123
+
 
 
 class UsersInfo:
